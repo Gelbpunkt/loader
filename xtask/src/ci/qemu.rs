@@ -96,7 +96,8 @@ impl Qemu {
 				"-append".to_string(),
 				format!("-freq {frequency}"),
 			]
-		} else if self.build.target() == Target::Aarch64 {
+		} else if self.build.target() == Target::Aarch64 || self.build.target() == Target::Aarch64Be
+		{
 			vec!["-machine".to_string(), "virt,gic-version=3".to_string()]
 		} else if self.build.target() == Target::Riscv64 {
 			vec![
@@ -174,7 +175,7 @@ impl Qemu {
 				cpu_args
 			}
 			Target::X86_64Fc => panic!("unsupported"),
-			Target::Aarch64 => {
+			Target::Aarch64 | Target::Aarch64Be => {
 				let mut cpu_args = if self.accel {
 					todo!()
 				} else {
@@ -233,7 +234,7 @@ impl Qemu {
 			Target::X86_64Uefi => {
 				memory = memory.max(512);
 			}
-			Target::Aarch64 => {
+			Target::Aarch64 | Target::Aarch64Be => {
 				memory = memory.max(256);
 			}
 			Target::Riscv64 => {
