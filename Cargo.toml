@@ -20,6 +20,7 @@ vm-fdt = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 aarch64-cpu = "11"
+aarch64-rt = { version = "0.4", default-features = false }
 enum_dispatch = "0.3"
 fdt = { version = "0.1" }
 goblin = { version = "0.10", default-features = false, features = ["elf64"] }

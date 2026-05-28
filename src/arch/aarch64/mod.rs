@@ -16,19 +16,11 @@ use hermit_entry::Entry;
 use hermit_entry::boot_info::{BootInfo, HardwareInfo, PlatformInfo, RawBootInfo, SerialPortBase};
 use hermit_entry::elf::LoadedKernel;
 use log::info;
+use take_static::take_static;
 
 use crate::arch::paging::*;
 use crate::os::CONSOLE;
 use crate::{BootInfoExt, FdtExt};
-
-unsafe extern "C" {
-	static mut l0_pgtable: u64;
-	static mut l1_pgtable: u64;
-	static mut l2_pgtable: u64;
-	static mut l2k_pgtable: u64;
-	static mut l3_pgtable: u64;
-	static mut L0mib_pgtable: u64;
-}
 
 /// start address of the RAM at Qemu's virt emulation
 const RAM_START: u64 = 0x40000000;
@@ -76,46 +68,55 @@ pub unsafe fn boot_kernel(kernel_info: LoadedKernel) -> ! {
 	let uart_address: u32 = CONSOLE.lock().get().get_stdout();
 	info!("Detect UART at {uart_address:#x}");
 
-	let pgt_slice = unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(l0_pgtable), 512) };
-	for i in pgt_slice.iter_mut() {
-		*i = 0;
+	take_static! {
+		static L0_PGTABLE: [u64; 512] = [0; 512];
+		static L1_PGTABLE: [u64; 512] = [0; 512];
+		static L2_PGTABLE: [u64; 512] = [0; 512];
+		static L3_PGTABLE: [u64; 512] = [0; 512];
+		static L2K_PGTABLE: [u64; 512] = [0; 512];
+		static L0MIB_PGTABLE: [u64; 10 * 512] = [0; 10 * 512];
 	}
-	pgt_slice[0] = ptr::addr_of_mut!(l1_pgtable).expose_provenance() as u64 + PT_PT;
-	pgt_slice[511] = ptr::addr_of_mut!(l0_pgtable).expose_provenance() as u64 + PT_PT + PT_SELF;
 
-	let pgt_slice = unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(l1_pgtable), 512) };
-	for i in pgt_slice.iter_mut() {
-		*i = 0;
-	}
-	pgt_slice[0] = ptr::addr_of_mut!(l2_pgtable).expose_provenance() as u64 + PT_PT;
-	pgt_slice[1] = ptr::addr_of_mut!(l2k_pgtable).expose_provenance() as u64 + PT_PT;
+	let l0_pgtable = L0_PGTABLE.take().unwrap();
+	let l1_pgtable = L1_PGTABLE.take().unwrap();
+	let l2_pgtable = L2_PGTABLE.take().unwrap();
+	let l3_pgtable = L3_PGTABLE.take().unwrap();
+	let l2k_pgtable = L2K_PGTABLE.take().unwrap();
+	let l0mib_pgtable = L0MIB_PGTABLE.take().unwrap();
 
-	let pgt_slice = unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(l2_pgtable), 512) };
-	for i in pgt_slice.iter_mut() {
+	for i in l0_pgtable.iter_mut() {
 		*i = 0;
 	}
-	pgt_slice[0] = ptr::addr_of_mut!(l3_pgtable).expose_provenance() as u64 + PT_PT;
+	l0_pgtable[0] = l1_pgtable.as_ptr().expose_provenance() as u64 + PT_PT;
+	l0_pgtable[511] = l0_pgtable.as_ptr().expose_provenance() as u64 + PT_PT + PT_SELF;
 
-	let pgt_slice = unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(l3_pgtable), 512) };
-	for i in pgt_slice.iter_mut() {
+	for i in l1_pgtable.iter_mut() {
 		*i = 0;
 	}
-	pgt_slice[1] = uart_address as u64 + PT_MEM_CD;
+	l1_pgtable[0] = l2_pgtable.as_ptr().expose_provenance() as u64 + PT_PT;
+	l1_pgtable[1] = l2k_pgtable.as_ptr().expose_provenance() as u64 + PT_PT;
+
+	for i in l2_pgtable.iter_mut() {
+		*i = 0;
+	}
+	l2_pgtable[0] = l3_pgtable.as_ptr().expose_provenance() as u64 + PT_PT;
+
+	for i in l3_pgtable.iter_mut() {
+		*i = 0;
+	}
+	l3_pgtable[1] = uart_address as u64 + PT_MEM_CD;
 
 	// map kernel to __executable_start and stack below the kernel
-	let pgt_slice = unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(l2k_pgtable), 512) };
-	for i in pgt_slice.iter_mut() {
+	for i in l2k_pgtable.iter_mut() {
 		*i = 0;
 	}
-	for (i, pgt_slice) in pgt_slice.iter_mut().enumerate().take(10) {
-		*pgt_slice = ptr::addr_of_mut!(L0mib_pgtable).expose_provenance() as u64
+	for (i, pgt_slice) in l2k_pgtable.iter_mut().enumerate().take(10) {
+		*pgt_slice = l0mib_pgtable.as_ptr().expose_provenance() as u64
 			+ (i * BasePageSize::SIZE) as u64
 			+ PT_PT;
 	}
 
-	let pgt_slice =
-		unsafe { core::slice::from_raw_parts_mut(ptr::addr_of_mut!(L0mib_pgtable), 10 * 512) };
-	for (i, entry) in pgt_slice.iter_mut().enumerate() {
+	for (i, entry) in l0mib_pgtable.iter_mut().enumerate() {
 		*entry = RAM_START + (i * BasePageSize::SIZE) as u64 + PT_MEM;
 	}
 
@@ -123,7 +124,7 @@ pub unsafe fn boot_kernel(kernel_info: LoadedKernel) -> ! {
 
 	// Load TTBRx
 	TTBR1_EL1.set(0);
-	TTBR0_EL1.set(&raw mut l0_pgtable as u64);
+	TTBR0_EL1.set(l0_pgtable.as_ptr() as u64);
 	barrier::dsb(barrier::SY);
 	barrier::isb(barrier::SY);
 

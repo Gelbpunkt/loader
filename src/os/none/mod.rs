@@ -26,6 +26,7 @@ pub fn executable_start() -> NonNull<()> {
 
 pub fn executable_end() -> NonNull<()> {
 	unsafe extern "C" {
+		#[cfg_attr(target_arch = "aarch64", link_name = "bin_end")]
 		static mut _end: u8;
 	}
 

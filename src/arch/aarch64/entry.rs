@@ -1,29 +1,24 @@
-use core::arch::{asm, global_asm};
+use core::arch::asm;
 
 use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{
 	CPACR_EL1, ID_AA64MMFR0_EL1, MAIR_EL1, MDSCR_EL1, ReadWriteable, Readable, SCTLR_EL1, TCR_EL1,
 	TPIDR_EL0, TPIDR_EL1, Writeable,
 };
+use aarch64_rt::entry;
 use log::info;
 use tock_registers::fields::{FieldValue, TryFromValue};
 
 /// Number of virtual address bits for 4KB page
 const VA_BITS: u64 = 48;
 
-global_asm!(
-	include_str!("entry.s"),
-	start_rust = sym start_rust,
-);
+// Reserve 16K boot stack
+entry!(pre_init, 4);
 
-#[inline(never)]
-pub unsafe fn start_rust() -> ! {
-	unsafe { pre_init() }
-}
-
-unsafe fn pre_init() -> ! {
+fn pre_init(x0: u64, _x1: u64, _x2: u64, _x3: u64) -> ! {
 	crate::log::init();
 	info!("Enter startup code");
+	info!("fdt: {x0}");
 
 	/* disable interrupts */
 	/*

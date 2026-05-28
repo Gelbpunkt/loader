@@ -234,7 +234,7 @@ impl Qemu {
 				cpu_args.push("-semihosting".to_string());
 				if self.u_boot {
 					cpu_args.push("-bios".to_string());
-					cpu_args.push("/usr/lib/u-boot/qemu_arm64/u-boot.bin".to_string());
+					cpu_args.push("/usr/share/u-boot/qemu_arm64/u-boot.bin".to_string());
 					cpu_args.push("-drive".to_string());
 					cpu_args.push("format=raw,file=fat:rw:target/boot".to_string());
 				} else {

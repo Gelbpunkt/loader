@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "aarch64-rt"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c11ec2f9c11149816e7f9461f894b04dec5be5b8d87fedb0884b1c60f9dba00c"
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -488,6 +494,7 @@ name = "hermit-loader"
 version = "0.5.6"
 dependencies = [
  "aarch64-cpu",
+ "aarch64-rt",
  "align-address",
  "allocator-api2 0.4.0",
  "anstyle",
